@@ -85,10 +85,25 @@ export default async function updateLinkById(
       status: 401,
     };
 
-  const unauthorizedSwitchCollection =
-    !isCollectionOwner && collectionIsAccessible?.id !== data.collection.id;
+  // Source: owner or member able to edit links (canUpdate)
+  const canModifySourceCollection =
+    collectionIsAccessible?.ownerId === userId || memberHasAccess;
 
-  // Makes sure collection members (non-owners) cannot move a link to/from a collection.
+  // Target: owner or member able to add links (canCreate)
+  const canModifyTargetCollection =
+    targetCollectionIsAccessible?.ownerId === userId ||
+    !!targetCollectionIsAccessible?.members.some(
+      (e: UsersAndCollections) => e.userId === userId && e.canCreate
+    );
+
+  const switchingCollection =
+    collectionIsAccessible?.id !== data.collection.id;
+
+  // Allow moving a link only if the user can edit BOTH the source and the target collection.
+  const unauthorizedSwitchCollection =
+    switchingCollection &&
+    !(canModifySourceCollection && canModifyTargetCollection);
+
   if (unauthorizedSwitchCollection)
     return {
       response: "You can't move a link to/from a collection you don't own.",
@@ -192,8 +207,8 @@ export default async function updateLinkById(
       },
     });
 
-    if (collectionIsAccessible?.id !== data.collection.id) {
-      await moveFiles(linkId, collectionIsAccessible?.id, data.collection.id);
+    if (collectionIsAccessible && collectionIsAccessible.id !== data.collection.id) {
+      await moveFiles(linkId, collectionIsAccessible.id, data.collection.id);
     }
 
     return { response: updatedLink, status: 200 };
